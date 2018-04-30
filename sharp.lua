@@ -5,13 +5,15 @@
 		 -+-  |-+-| |-+-| |-+-  |-+-  
 			| |   | |   | |  \  |     
 		 ---    
-		Versión Alpha
+		Ver. Alpha
 		
 		Copyright 2018, Alejandro Celis <t.me/aesthezel>
-		Lea LICENCIA para más detalles.
+		Based on UNMAINTENED telegram-bot by Yogop <https://github.com/yagop/telegram-bot/>
+		Read LICENSE for more details.
  
 ]]
 
+-- REQUERIMIENTOS
 HTTP = require('socket.http')
 HTTPS = require('ssl.https')
 URL = require('socket.url')
@@ -32,30 +34,30 @@ local function check_config()
 	end
 end
 
-function bot_init(on_reload) -- The function run when the bot is started or reloaded.
-	config = dofile('alma.lua') -- Load configuration file. --config.lua
+function sharp_start(on_reload) -- Funcion que inicia todo. ###(bot_init)
+	config = dofile('alma.lua') -- Archivo de configuración.
 	local error = check_config()
 	if error then
 		print(clr.red..error)
 		return
 	end
 	print(clr.blue..'Leyendo lista de baneos globales...' ..clr.reset)
-	gbans = dofile('datos/expulsiones.lua')
-	misc, roles = dofile('codex.lua') -- Load miscellaneous and cross-plugin functions.
-	lang = dofile(config.languages) -- All the languages available
-	key = dofile("clave.lua")
-	api = require('pensamiento')
+	foxbans = dofile('datos/expulsiones.lua') -- Analiza la lista de expulsiones globales. ###(gbans)
+	misc, roles = dofile('codex.lua') -- Carga todas las funciones del BOT.
+	lang = dofile(config.languages) -- Analiza los lenguajes disponibles.
+	key = dofile("claves.lua") -- Lee las claves privadas de otras API, Ej: Google API.
+	api = require('pensamiento') -- El archivo de funciones de la API de Telegram.
 	
 	current_m = 0
 	last_m = 0
 	
 	bot = nil
-	while not bot do -- Get bot info and retry if unable to connect.
+	while not bot do -- Chequea si la información es correcta, si no lo es regresa un valor inválido.
 		bot = api.getMe()
 	end
 	bot = bot.result
 
-	plugins = {} -- Load plugins.
+	plugins = {} -- Funcion, sistema de plugins.
 	for i,v in ipairs(config.plugins) do
 		local p = dofile('agregados/'..v)
 		table.insert(plugins, p)
@@ -70,22 +72,22 @@ function bot_init(on_reload) -- The function run when the bot is started or relo
 	print('\n'..clr.blue..'BOT EJECUTANDOSE:'..clr.reset, clr.red..'[@'..bot.username .. '] [' .. bot.first_name ..'] ['..bot.id..']'..clr.reset..'\n')
 	if not on_reload then
 		db:hincrby('bot:general', 'starts', 1)
-		api.sendAdmin('*Voyevoda aka. Remaked Boss*\nIniciado nuevamente\n_'..os.date('%A, %d %B %Y\n%X')..'_\n'..#plugins..' agregados cargados', true)
+		api.sendAdmin('*Sharp aka. Jack*\nIniciado nuevamente\n_'..os.date('%A, %d %B %Y\n%X')..'_\n'..#plugins..' agregados cargados', true)
 	end
 	
-	-- Generate a random seed and "pop" the first random number. :)
+	-- Genera un valor aleatorio y utiliza el primer número aleatorio.
 	math.randomseed(os.time())
 	math.random()
 
-	last_update = last_update or 0 -- Set loop variables: Update offset,
-	last_cron = last_cron or os.time() -- the time of the last cron job,
-	is_started = true -- whether the bot should be running or not.
+	last_update = last_update or 0 		-- Estalece una variable de bucle, para compenzar el tiempo,
+	last_cron = last_cron or os.time() 	-- la hora del último "cron job".
+	is_started = true 					-- si el BOT debería estar ejecutándose o no.
 	
 	if on_reload then return #plugins end
 
 end
 
-local function get_from(msg)
+local function get_from(msg) -- Lectura de mensajes en consola.
 	local user = '['..msg.from.first_name
 	if msg.from.last_name then
 		user = user..' '..msg.from.last_name
@@ -98,7 +100,7 @@ local function get_from(msg)
 	return user
 end
 
-local function get_what(msg)
+local function get_what(msg) -- Identificador de formato de multimedia.
 	if msg.sticker then
 		return 'sticker'
 	elseif msg.photo then
@@ -124,27 +126,27 @@ end
 
 local function collect_stats(msg)
 	
-	--count the number of messages
+	-- Contador de mensajes recibidos por el BOT -> Redis.
 	db:hincrby('bot:general', 'messages', 1)
 	
-	--for resolve username
+	-- Resolvedor de nombre de usuarios.
 	if msg.from and msg.from.username then
 		db:hset('bot:usernames', '@'..msg.from.username:lower(), msg.from.id)
 		db:hset('bot:usernames:'..msg.chat.id, '@'..msg.from.username:lower(), msg.from.id)
 	end
-	if msg.forward_from and msg.forward_from.username then
+	if msg.forward_from and msg.forward_from.username then -- Resolvedor de respuestas.
 		db:hset('bot:usernames', '@'..msg.forward_from.username:lower(), msg.forward_from.id)
 		db:hset('bot:usernames:'..msg.chat.id, '@'..msg.forward_from.username:lower(), msg.forward_from.id)
 	end
 	
 	if not(msg.chat.type == 'private') then
 		if msg.from then
-			db:hset('chat:'..msg.chat.id..':userlast', msg.from.id, os.time()) --last message for each user
-			db:hset('bot:chat:latsmsg', msg.chat.id, os.time()) --last message in the group
+			db:hset('chat:'..msg.chat.id..':userlast', msg.from.id, os.time()) -- Último mensaje de usuarios.
+			db:hset('bot:chat:latsmsg', msg.chat.id, os.time()) -- Último mensaje de grupo.
 		end
 	end
 	
-	--user stats
+	-- Estadísticas de usuarios.
 	if msg.from then
 		db:hincrby('user:'..msg.from.id, 'msgs', 1)
 	end
@@ -172,87 +174,81 @@ local function match_pattern(pattern, text)
   	end
 end
 
-on_msg_receive = function(msg) -- The fn run whenever a message is received.
-	--vardump(msg)
+on_msg_receive = function(msg) -- El función se ejecuta cada vez que se recibe un mensaje.
+	--vardump(msg) ### No implementado aún.
 	if not msg then
 		api.sendAdmin('Retorno sin mensajes') return
 	end
 	
-	if msg.date < os.time() - 7 then return end -- Do not process old messages.
+	if msg.date < os.time() - 7 then return end -- No procesará viejos mensajes.
 	if not msg.text then msg.text = msg.caption or '' end
 	
 	msg.normal_group = false
 	if msg.chat.type == 'group' then msg.normal_group = true end
 	
-	--for commands link
-	--[[if msg.text:match('^/start .+') then
-		msg.text = '/' .. msg.text:input()
-	end]]
-	
-	--Group language
+	-- Registro de lenguaje -> Redis.
 	msg.ln = (db:get('lang:'..msg.chat.id)) or 'es'
 	
-	collect_stats(msg) --resolve_username support, chat stats
+	collect_stats(msg) -- ###resolve_username, crea la estadistica.
 	
 	local stop_loop
 	for i, plugin in pairs(plugins) do
 		if plugin.on_each_msg then
 			msg, stop_loop = plugin.on_each_msg(msg, msg.lang)
 		end
-		if stop_loop then --check if on_each_msg said to stop the triggers loop
+		if stop_loop then -- Detiene cualquier loop de una función agregada.
 			return
 		end
 	end
 	
 	for i,plugin in pairs(plugins) do
 		if plugin.triggers then
-			if (config.bot_settings.testing_mode and plugin.test) or not plugin.test then --run test plugins only if test mode is on
+			if (config.bot_settings.testing_mode and plugin.test) or not plugin.test then -- Switch: si la función TEST está habilitada cargará agregados de prueba.
 				for k,w in pairs(plugin.triggers) do				
 					local blocks = match_pattern(w, msg.text)
 					if w[1] then w = w[1] end
 					if blocks then
 						
-						-- NUEVO / 0.5.0
+						-- NUEVO / 0.5.0 -- Funcionaes para el NICKNAME.
 						msg.chat.id_str = tostring(msg.chat.id)
 						msg.from.id_str = tostring(msg.from.id)
-						-- NUEVO / 0.5.0
 						
-						--workaround for the stupid bug
+						-- Solución temporal del bug de chat privado.
 						if not(msg.chat.type == 'private') and not db:exists('chat:'..msg.chat.id..':settings') and not msg.service then
 							misc.initGroup(msg.chat.id)
 						end
 						
-						--print in the terminal
+						-- Muestra las acciones hechas por usuarios en la terminal.
 						print(clr.reset..clr.blue..'['..os.date('%X')..']'..clr.red..' '..w..clr.reset..' '..get_from(msg)..' -> ['..msg.chat.id..'] ['..msg.chat.type..']')
 						
-						--print the match
+						-- ||
 						if blocks[1] ~= '' then
       						db:hincrby('bot:general', 'query', 1)
       						if msg.from then db:incrby('user:'..msg.from.id..':query', 1) end
       					end
 						
-						--execute the plugin
+						-- Ejecuta al función de algún agregado.
 						local success, result = pcall(function()
 							return plugin.action(msg, blocks)
 						end)
 						
-						--if bugs
+						-- Si se detecta una mal función, replicará con un aviso de BUG.
 						if not success then
 							print(msg.text, result)
 							if config.bot_settings.notify_bug then
 								api.sendReply(msg, '*Se ha detectado un BUG*', true)
 							end
-							--misc.save_log('errors', result, msg.from.id or false, msg.chat.id or false, msg.text or false)
+							--misc.save_log('errors', result, msg.from.id or false, msg.chat.id or false, msg.text or false) ### No implementado aún.
           					api.sendAdmin('Un #error a ocurrido.\n'..result..'\n'..msg.ln..'\n'..msg.text)
 							return
 						end
 						
-						-- If the action returns a table, make that table msg.
+						-- Si la acción devuelve una tabla, el resultado será una tabla.
 						if type(result) == 'table' then
 							msg = result
 						elseif type(result) == 'string' then
 							msg.text = result
-						-- If the action returns true, don't stop.
+						-- Si la acción es válida, la acepta.
 						elseif result ~= true then
 							return
 						end
@@ -267,29 +263,29 @@ local function service_to_message(msg)
 	msg.service = true
 	if msg.new_chat_member then
     	if tonumber(msg.new_chat_member.id) == tonumber(bot.id) then
-			msg.text = '###botadded'
+			msg.text = '###addedongroup' -- Mensaje que dará cuando sea agregado en un grupo.
 		else
-			msg.text = '###added'
+			msg.text = '###added' -- Usuario agregado al grupo en precensia del BOT.
 		end
 		msg.adder = misc.clone_table(msg.from)
 		msg.added = misc.clone_table(msg.new_chat_member)
 	elseif msg.left_chat_member then
     	if tonumber(msg.left_chat_member.id) == tonumber(bot.id) then
-			msg.text = '###botremoved'
+			msg.text = '###removedfromgroup' -- Mensaje que dará cuando sea agregado en un grupo.
 		else
-			msg.text = '###removed'
+			msg.text = '###removed' -- Usuario removido al grupo en precensia del BOT.
 		end
 		msg.remover = misc.clone_table(msg.from)
 		msg.removed = misc.clone_table(msg.left_chat_member)
 	elseif msg.group_chat_created then
     	msg.chat_created = true
     	msg.adder = misc.clone_table(msg.from)
-    	msg.text = '###botadded'
+    	msg.text = '###addedongroup' -- Clonación de mensaje  en caso de ser removido posteriormente.
 	end
     return on_msg_receive(msg)
 end
 
-local function forward_to_msg(msg)
+local function forward_to_msg(msg) -- Función de respuesta.
 	if msg.text then
 		msg.text = '###forward:'..msg.text
 	else
@@ -304,7 +300,7 @@ local function media_to_msg(msg)
 		msg.text = '###image'
 		msg.media_type = 'image'
 		--if msg.caption then
-			--msg.text = msg.text..':'..msg.caption
+			--msg.text = msg.text..':'..msg.caption ### No implementado aún, error con la actualización de API.
 		--end
 	elseif msg.video then
 		msg.text = '###video'
@@ -332,7 +328,7 @@ local function media_to_msg(msg)
 		msg.media = false
 	end
 	
-	--cehck entities for links/text mentions
+	-- Chequeo de enlaces provenientes de Telegram.
 	if msg.entities then
 		for i,entity in pairs(msg.entities) do
 			if entity.type == 'text_mention' then
@@ -370,7 +366,7 @@ local function handle_inline_keyboards_cb(msg)
 	msg.date = os.time()
 	msg.cb = true
 	msg.cb_id = msg.id
-	--msg.cb_table = JSON.decode(msg.data)
+	--msg.cb_table = JSON.decode(msg.data) ### No implementado aún.
 	msg.message_id = msg.message.message_id
 	msg.chat = msg.message.chat
 	msg.message = nil
@@ -378,15 +374,15 @@ local function handle_inline_keyboards_cb(msg)
 	return on_msg_receive(msg)
 end
 
----------WHEN THE BOT IS STARTED FROM THE TERMINAL, THIS IS THE FIRST FUNCTION HE FOUNDS
+-- PRIMERA FUNCIÓN: Esta es la que ejecutará al ser iniciado por el terminal.
 
-bot_init() -- Actually start the script. Run the bot_init function.
+sharp_start() -- Inicia el BOT.
 
-while is_started do -- Start a loop while the bot should be running.
-	local res = api.getUpdates(last_update+1) -- Get the latest updates!
+while is_started do -- El loop que hará saber si el BOT debe permanecer activo.
+	local res = api.getUpdates(last_update+1) -- Se mantiene actualizado de cualquier función paralela.
 	if res then
-		--vardump(res)
-		for i,msg in ipairs(res.result) do -- Go through every new message.
+		--vardump(res) ### No implementado aún.
+		for i,msg in ipairs(res.result) do -- Repasa cada nuevo mensaje.
 			last_update = msg.update_id
 			current_m = current_m + 1
 			if msg.message  or msg.callback_query --[[or msg.edited_message]]then
@@ -414,15 +410,15 @@ while is_started do -- Start a loop while the bot should be running.
 	else
 		print('Error de conexión')
 	end
-	if last_cron ~= os.date('%M') then -- Run cron jobs every minute.
+	if last_cron ~= os.date('%M') then -- Ejecuta "cron jobs" cada minuto.
 		last_cron = os.date('%M')
 		last_m = current_m
 		current_m = 0
 		for i,v in ipairs(plugins) do
-			if v.cron then -- Call each plugin's cron function, if it has one.
+			if v.cron then -- Llama la función "cron" de cada agregado, si es que tiene una.
 				local res, err = pcall(function() v.cron() end)
 				if not res then
-          			api.sendLog('Un #error a ocurrido.\n'..err)
+          			api.sendLog('Un #error a ocurrido.\n'..err) -- Si falla un "cron job".
 					return
 				end
 			end
@@ -430,4 +426,4 @@ while is_started do -- Start a loop while the bot should be running.
 	end
 end
 
-print('El BOT se está apagando.\n')
+print('El BOT se está apagando.\n') -- FIN
