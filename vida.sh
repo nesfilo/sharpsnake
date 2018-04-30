@@ -1,5 +1,5 @@
-session=#Boss
-session2=VetadosS2
+session=#Sharp
+session2=Expulsiones
 process=process-115-no_exit
 
 exit_type(){
@@ -70,7 +70,7 @@ if [ "$1" == "seguro" ]; then
 	sudo tmux kill-session -t $session
 	sudo tmux kill-session -t $process
 	clear
-	sudo tmux new-session -s "$process" -d 'sudo bash run.sh '$process
+	sudo tmux new-session -s "$process" -d 'sudo bash vida.sh '$process
 	echo "Sesión segura iniciada"
 	exit
 fi
